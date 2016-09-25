@@ -13,6 +13,7 @@ import org.appcelerator.kroll.KrollModule;
 import org.appcelerator.kroll.annotations.Kroll;
 import org.appcelerator.titanium.TiApplication;
 import org.appcelerator.kroll.common.Log;
+import org.appcelerator.kroll.KrollFunction;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -20,7 +21,7 @@ import android.app.NotificationManager;
 import android.content.Context;
 import android.app.Activity;
 import android.provider.Settings.Secure;
-
+import java.util.HashMap;
 import com.parse.Parse;
 import com.parse.ParsePush;
 import com.parse.ParseAnalytics;
@@ -30,6 +31,7 @@ import com.parse.ParseUser;
 import com.parse.LogInCallback;
 import com.parse.SaveCallback;
 import com.parse.ParseException;
+import eu.rebelcorp.parse.BackgroundManager;
 
 @Kroll.module(name="Parse", id="eu.rebelcorp.parse")
 public class ParseModule extends KrollModule
@@ -47,7 +49,7 @@ public class ParseModule extends KrollModule
     public static String PROPERTY_SERVER_URL = "Parse_ServerUrl";
 
     public static final int STATE_RUNNING = 1;
-    public static final int STATE_STOPPED = 2;
+    public static final int STATE_BACKGROUND = 2;
     public static final int STATE_DESTROYED = 3;
 
     /* Control the state of the activity */
@@ -94,19 +96,20 @@ public class ParseModule extends KrollModule
     public void onPause(Activity activity)
     {
         super.onPause(activity);
-        setState(STATE_STOPPED);
+        setState(STATE_BACKGROUND);
     }
 
     public void onStop(Activity activity)
     {
         super.onStop(activity);
-        setState(STATE_STOPPED);
+        setState(STATE_BACKGROUND);
     }
 
     public void onDestroy(Activity activity)
     {
         super.onDestroy(activity);
         setState(STATE_DESTROYED);
+        BackgroundManager.get(TiApplication.getInstance()).removeAllListeners();
     }
 
     private void setState(int state)
@@ -127,9 +130,25 @@ public class ParseModule extends KrollModule
 
     // Methods
     @Kroll.method
-    public void start()
+    public void start(final KrollFunction callback)
     {
         setState(STATE_RUNNING);
+        BackgroundManager.Listener appEventsListener = new BackgroundManager.Listener() {
+            public void onBecameForeground() {
+               
+                 Log.d(TAG, "onBecameForeground");
+                 module.setState(STATE_RUNNING);
+            }
+
+            public void onBecameBackground() {
+               
+                 Log.d(TAG, "onBecameBackground");
+                 module.setState(STATE_BACKGROUND);
+            }
+        };
+
+        BackgroundManager.get(TiApplication.getInstance()).registerListener(appEventsListener);
+
         // Track Push opens
         ParseAnalytics.trackAppOpenedInBackground(TiApplication.getAppRootOrCurrentActivity().getIntent());
         ParseInstallation.getCurrentInstallation().put("androidId", getAndroidId());
@@ -148,6 +167,10 @@ public class ParseModule extends KrollModule
 				} catch (JSONException e1) {
 					Log.e(TAG, "InstallationId event failed: " + e1.getMessage());
 				}
+
+                HashMap<String, Boolean> map = new HashMap<String, Boolean>();
+                map.put("success", e == null);
+                callback.call(getKrollObject(), map);
             }
         });
     }
@@ -171,13 +194,45 @@ public class ParseModule extends KrollModule
     }
 
     @Kroll.method
-    public void subscribeChannel(@Kroll.argument String channel) {
-        ParsePush.subscribeInBackground(channel);
+    public void subscribeChannel(@Kroll.argument String channel,
+            final KrollFunction callback) {
+        
+
+        ParsePush.subscribeInBackground(channel, new SaveCallback() {
+            @Override
+            public void done(ParseException e) {
+
+                if (e == null) {
+                    Log.d(TAG,
+                            "successfully subscribed to the broadcast channel.");
+                } else {
+                    Log.e(TAG, "failed to subscribe for push", e);
+                }
+                HashMap<String, Boolean> map = new HashMap<String, Boolean>();
+                map.put("success", e == null);
+                callback.call(getKrollObject(), map);
+            }
+        });
     }
 
     @Kroll.method
-    public void unsubscribeChannel(@Kroll.argument String channel) {
-        ParsePush.unsubscribeInBackground(channel);
+    public void unsubscribeChannel(@Kroll.argument String channel,
+            final KrollFunction callback) {
+
+        ParsePush.unsubscribeInBackground(channel, new SaveCallback() {
+            @Override
+            public void done(ParseException e) {
+
+                if (e == null) {
+                    Log.d(TAG, "successfully unsubscribed to the channel.");
+                } else {
+                    Log.e(TAG, "failed to unsubscribe for channel", e);
+                }
+                HashMap<String, Boolean> map = new HashMap<String, Boolean>();
+                map.put("success", e == null);
+                callback.call(getKrollObject(), map);
+            }
+        });
     }
 
     @Kroll.method
