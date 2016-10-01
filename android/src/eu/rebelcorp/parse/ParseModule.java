@@ -135,13 +135,13 @@ public class ParseModule extends KrollModule
         setState(STATE_RUNNING);
         BackgroundManager.Listener appEventsListener = new BackgroundManager.Listener() {
             public void onBecameForeground() {
-               
+
                  Log.d(TAG, "onBecameForeground");
                  module.setState(STATE_RUNNING);
             }
 
             public void onBecameBackground() {
-               
+
                  Log.d(TAG, "onBecameBackground");
                  module.setState(STATE_BACKGROUND);
             }
@@ -152,6 +152,10 @@ public class ParseModule extends KrollModule
         // Track Push opens
         ParseAnalytics.trackAppOpenedInBackground(TiApplication.getAppRootOrCurrentActivity().getIntent());
         ParseInstallation.getCurrentInstallation().put("androidId", getAndroidId());
+        String release = android.os.Build.VERSION.RELEASE;
+        if (release != null) {
+             ParseInstallation.getCurrentInstallation().put("androidVersion", release);
+        }
         ParseInstallation.getCurrentInstallation().saveInBackground(new SaveCallback() {
             public void done(ParseException e) {
                 if (e != null) {
@@ -196,7 +200,7 @@ public class ParseModule extends KrollModule
     @Kroll.method
     public void subscribeChannel(@Kroll.argument String channel,
             final KrollFunction callback) {
-        
+
 
         ParsePush.subscribeInBackground(channel, new SaveCallback() {
             @Override
@@ -250,7 +254,7 @@ public class ParseModule extends KrollModule
     public String getObjectId() {
         return ParseInstallation.getCurrentInstallation().getObjectId();
     }
-    
+
     @Kroll.method
     public void notificationClear() {
         TiApplication context = TiApplication.getInstance();
