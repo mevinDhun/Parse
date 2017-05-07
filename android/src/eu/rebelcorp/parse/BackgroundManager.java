@@ -4,7 +4,7 @@ import android.app.Activity;
 import android.app.Application;
 import android.os.Bundle;
 import android.os.Handler;
-import org.appcelerator.titanium.util.Log;
+import org.appcelerator.kroll.common.Log;
 
 import java.util.ArrayList;
 import java.util.List;
